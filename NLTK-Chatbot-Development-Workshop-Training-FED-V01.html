@@ -1,0 +1,221 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+  <title>Chatbot Development Workshop by Worachat W., 2025</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 0 10px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+    }
+    #chat-history {
+      height: 400px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border-radius: 5px;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 8px 12px;
+      border-radius: 5px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .user-message {
+      background-color: #e3f2fd;
+      color: #1976d2;
+      margin-left: auto;
+      text-align: right;
+    }
+    .bot-message {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      margin-right: auto;
+      text-align: left;
+    }
+    #chat-form {
+      display: flex;
+      margin-top: 10px;
+    }
+    #user-input {
+      flex-grow: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px 0 0 5px;
+      outline: none;
+    }
+    #user-input:focus {
+      border-color: #1976d2;
+    }
+    button {
+      padding: 8px 16px;
+      border: 1px solid #1976d2;
+      background-color: #1976d2;
+      color: white;
+      border-radius: 0 5px 5px 0;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1565c0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Chatbot Development Workshop V01</h1>
+  <div id="chat-history"></div>
+  <form id="chat-form">
+    <input type="text" id="user-input" placeholder="Type your message...">
+    <button type="submit">Send</button>
+  </form>
+
+  <script>
+    // Reflections dictionary for pronoun swapping
+    const reflections = {
+      "i am": "you are",
+      "i was": "you were",
+      "i": "you",
+      "i'm": "you are",
+      "i'd": "you would",
+      "i've": "you have",
+      "i'll": "you will",
+      "my": "your",
+      "you are": "I am",
+      "you were": "I was",
+      "you've": "I have",
+      "you'll": "I will",
+      "your": "my",
+      "yours": "mine",
+      "you": "me",
+      "me": "you"
+    };
+
+    // Chatbot patterns and responses
+    const pairs = [
+      [new RegExp('hello|hi|hey'), ['Hello!', 'Hi there!', 'Hey! How can I assist you?']],
+      [new RegExp('how are you\\??'), ['I am fine, thank you!', 'Doing well, how about you?']],
+      [new RegExp('what is your name\\??'), ['I am Chatbot.', 'My name is Chatbot, here to help you!']],
+      [new RegExp('what is chatbot\\??'), ['I am a Python program designed to chat with you!', 'Chatbot is a simple AI built with NLTK.']],
+      [new RegExp('need help'), ['How can I assist you today?']],
+      [new RegExp('i am worachat'), ['Nice to meet you, Worachat!']],
+      [new RegExp('quit'), ['Goodbye!', 'See you later!']],
+      [new RegExp('.*'), ['Sorry, I don’t understand that.', 'Can you say something else?']]
+    ];
+
+    // Function to apply reflections to input
+    function applyReflections(input) {
+      let words = input.toLowerCase().split(' ');
+      let result = [];
+      let i = 0;
+      while (i < words.length) {
+        let matched = false;
+        for (let len = 2; len >= 1; len--) {
+          if (i + len <= words.length) {
+            let key = words.slice(i, i + len).join(' ');
+            if (key in reflections) {
+              let replacement = reflections[key].split(' ');
+              result.push(...replacement);
+              i += len;
+              matched = true;
+              break;
+            }
+          }
+        }
+        if (!matched) {
+          result.push(words[i]);
+          i++;
+        }
+      }
+      return result.join(' ');
+    }
+
+    // Function to get chatbot response
+    function getBotResponse(input) {
+      const reflected = applyReflections(input);
+      for (let [pattern, responses] of pairs) {
+        if (pattern.test(reflected)) {
+          return responses[Math.floor(Math.random() * responses.length)];
+        }
+      }
+      return "I don’t understand that.";
+    }
+
+    // DOM elements
+    const chatHistory = document.getElementById('chat-history');
+    const chatForm = document.getElementById('chat-form');
+    const userInput = document.getElementById('user-input');
+
+    // Add message to chat history
+    function addMessage(text, isUser) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = 'message ' + (isUser ? 'user-message' : 'bot-message');
+      messageDiv.textContent = text;
+      chatHistory.appendChild(messageDiv);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    // Handle form submission
+    chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = userInput.value.trim();
+      if (input) {
+        addMessage(input, true);
+        const response = getBotResponse(input);
+        addMessage(response, false);
+        userInput.value = '';
+      }
+    });
+
+    // Initialize with welcome message
+    addMessage('Hello! I am Chatbot, built for the 2025 Workshop by Worachat Wannawong, Ph.D. Type "quit" to say goodbye!', false);
+  </script>
+</body>
+</html>
